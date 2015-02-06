@@ -3,13 +3,15 @@
 namespace BeSimple\I18nRoutingBundle\Routing;
 
 use Symfony\Component\Routing\RouterInterface;
+use Symfony\Component\Routing\Matcher\RequestMatcherInterface;
 use Symfony\Component\Routing\Exception\RouteNotFoundException;
 use BeSimple\I18nRoutingBundle\Routing\Translator\AttributeTranslatorInterface;
 use Symfony\Component\DependencyInjection\ContainerInterface;
 use Symfony\Component\Routing\Exception\MissingMandatoryParametersException;
 use Symfony\Component\Routing\RequestContext;
+use Symfony\Component\HttpFoundation\Request;
 
-class Router implements RouterInterface
+class Router implements RouterInterface, RequestMatcherInterface
 {
     /**
      * @var AttributeTranslatorInterface
@@ -95,13 +97,8 @@ class Router implements RouterInterface
         }
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    public function match($pathinfo)
+    private function processMatch($match)
     {
-        $match = $this->router->match($pathinfo);
-
         // if a _locale parameter isset remove the .locale suffix that is appended to each route in I18nRoute
         if (!empty($match['_locale']) && preg_match('#^(.+)\.'.preg_quote($match['_locale'], '#').'+$#', $match['_route'], $route)) {
             $match['_route'] = $route[1];
@@ -117,6 +114,30 @@ class Router implements RouterInterface
         }
 
         return $match;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function match($pathinfo)
+    {
+        return $this->processMatch($this->router->match($pathinfo));
+
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function matchRequest(Request $request)
+    {
+        $match = null;
+        if ($this->router instanceof RequestMatcherInterface) {
+            $match = $this->router->matchRequest($request);
+        } else {
+            $match = $this->router->match($request->getPathInfo());
+        }
+
+        return $this->processMatch($match);
     }
 
     public function getRouteCollection()
